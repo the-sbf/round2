@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Round One / Round Two</title>
+<style>
+:root{
+  --ink:#0D1124; --raised:#161B33; --line:#2A3050; --live:#39406B;
+  --bone:#E8E9F2; --bone-dim:#9BA0B8; --bone-faint:#5F6480;
+  --amber:#E9AE4A; --tight:#E0685C;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--ink);color:var(--bone);font-family:var(--serif);
+  -webkit-font-smoothing:antialiased;overflow:hidden;touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+#stage{
+  height:100%;min-height:480px;max-width:560px;margin:0 auto;
+  padding:18px 20px calc(14px + env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:column;
+}
+.screen{flex:1;min-height:0;display:flex;flex-direction:column}
+.screen[hidden]{display:none}
+
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--bone-faint)}
+.eyebrow b{color:var(--amber);font-weight:400}
+h1{font-weight:400;font-size:34px;line-height:1.15;letter-spacing:-.01em;margin-top:14px}
+p.lead{font-size:18px;line-height:1.5;color:var(--bone-dim);margin-top:14px;max-width:34ch}
+p.lead strong{color:var(--bone);font-weight:400}
+
+.center{flex:1;display:flex;flex-direction:column;justify-content:center}
+.actions{display:flex;flex-direction:column;align-items:flex-start;gap:14px;margin-top:26px}
+.go{
+  font-family:var(--mono);font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  padding:15px 26px;border:1px solid var(--amber);color:var(--amber);border-radius:3px;
+  transition:background .2s,color .2s;
+}
+.go:hover:not(:disabled){background:var(--amber);color:var(--ink)}
+.go:disabled{border-color:var(--line);color:var(--bone-faint);cursor:default}
+.quiet{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-faint);padding:6px 0;border-bottom:1px solid transparent}
+.quiet:hover{color:var(--bone-dim);border-bottom-color:var(--line)}
+
+/* line picker */
+.lines{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.line{
+  text-align:left;font-size:18px;font-style:italic;padding:11px 14px;border:1px solid var(--line);
+  border-radius:3px;color:var(--bone-dim);transition:border-color .2s,color .2s,background .2s;
+}
+.line:hover{border-color:var(--live);color:var(--bone)}
+.line[aria-pressed="true"]{border-color:var(--amber);color:var(--amber);background:rgba(233,174,74,.07)}
+.own{
+  width:100%;font-family:var(--serif);font-size:18px;font-style:italic;color:var(--bone);
+  background:transparent;border:1px solid var(--line);border-radius:3px;padding:11px 14px;
+}
+.own::placeholder{color:var(--bone-faint)}
+.own.picked{border-color:var(--amber);color:var(--amber)}
+
+/* run */
+.runhead{display:flex;align-items:center;justify-content:space-between}
+.clockrow{display:flex;align-items:center;gap:18px;margin-top:10px}
+.ring{width:92px;height:92px;flex:none;position:relative}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:3}
+.ring .bg{stroke:var(--line)}
+.ring .fg{stroke:var(--amber);stroke-linecap:butt;transition:stroke .3s}
+.ring .t{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:22px;font-variant-numeric:tabular-nums;color:var(--bone);transition:color .3s;
+}
+.late .ring .fg{stroke:var(--tight)}
+.late .ring .t{color:var(--tight)}
+.late .ring{animation:pulse .9s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.045)}}
+.reach{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-faint)}
+.reach b{font-size:26px;letter-spacing:0;color:var(--bone);font-weight:400;font-variant-numeric:tabular-nums}
+.mine{
+  margin-top:10px;font-size:18px;font-style:italic;color:var(--amber);opacity:.72;min-height:26px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:opacity .4s;
+}
+.late .mine{opacity:1}
+
+.sumwrap{flex:1;min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.sum{font-size:46px;letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap;min-height:56px}
+.sum.long{font-size:34px}
+.sum .ghost{color:transparent}
+.ans{
+  font-family:var(--mono);font-size:26px;min-width:150px;height:44px;border-bottom:1px solid var(--live);
+  text-align:center;line-height:44px;font-variant-numeric:tabular-nums;color:var(--amber);transition:border-color .15s;
+}
+.ans.wait{border-bottom-color:var(--line)}
+.ans.bad{color:var(--tight);border-bottom-color:var(--tight);animation:shake .25s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.key{
+  font-family:var(--mono);font-size:20px;height:44px;border:1px solid var(--line);border-radius:3px;color:var(--bone);
+  background:var(--raised);transition:background .1s,border-color .1s;user-select:none;-webkit-user-select:none;
+}
+.key:active,.key.hit{background:var(--live);border-color:var(--live)}
+.key.fn{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-faint);background:transparent}
+
+.track{display:flex;gap:2px;margin-top:12px}
+.tick{flex:1;height:6px;background:var(--line);border-radius:1px;transition:background .2s}
+.tick.on{background:var(--amber)}
+.tick.end{background:var(--live)}
+.trackcap{display:flex;justify-content:space-between;margin-top:5px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--bone-faint);text-transform:uppercase}
+
+/* end */
+.big{font-size:54px;line-height:1;font-weight:400}
+.readout{font-family:var(--mono);font-size:13px;letter-spacing:.08em;line-height:2;color:var(--bone-dim);margin-top:18px}
+.readout b{color:var(--bone);font-weight:400}
+.feel{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.feel .line{font-style:normal;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:10px 12px}
+.reply{font-size:18px;line-height:1.5;color:var(--bone);margin-top:16px;min-height:54px;max-width:34ch}
+.next{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--bone-faint);margin-top:18px}
+
+@media (max-height:600px){
+  h1{font-size:28px} .ring{width:72px;height:72px} .ring .t{font-size:18px}
+  .sum{font-size:38px;min-height:46px} .key{height:38px} .big{font-size:42px}
+}
+@media (max-width:380px){ #stage{padding-inline:16px} .sum{font-size:40px} .sum.long{font-size:28px} }
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- intro -->
+  <section class="screen" id="intro">
+    <div class="eyebrow" id="introEyebrow"></div>
+    <div class="center">
+      <h1 id="introTitle"></h1>
+      <p class="lead" id="introLead"></p>
+      <div class="lines" id="lines" hidden></div>
+      <div class="actions">
+        <button class="go" id="start" type="button">Start the clock</button>
+        <button class="quiet" id="skip" type="button">Skip this round</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- run -->
+  <section class="screen" id="run" hidden>
+    <div class="runhead">
+      <div class="eyebrow" id="runEyebrow"></div>
+      <button class="quiet" id="stop" type="button">Stop</button>
+    </div>
+    <div class="clockrow">
+      <div class="ring" aria-hidden="true">
+        <svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="46"/><circle class="fg" id="ringFg" cx="50" cy="50" r="46"/></svg>
+        <div class="t" id="clock">45.0</div>
+      </div>
+      <div class="reach"><b id="reachN">0</b> of <span id="reachT">40</span></div>
+    </div>
+    <div class="mine" id="mine"></div>
+    <div class="sumwrap">
+      <div class="sum" id="sum" aria-live="polite"></div>
+      <div class="ans wait" id="ans" aria-label="Your answer"></div>
+    </div>
+    <div class="pad" id="pad"></div>
+    <div class="track" id="track" aria-hidden="true"></div>
+    <div class="trackcap"><span>Start</span><span>Finish</span></div>
+  </section>
+
+  <!-- end -->
+  <section class="screen" id="end" hidden>
+    <div class="eyebrow" id="endEyebrow"></div>
+    <div class="center">
+      <div class="big" id="endBig"></div>
+      <div class="readout" id="endReadout"></div>
+      <p class="lead" id="endLead"></p>
+      <div id="feelBlock" hidden>
+        <p class="lead" id="feelQ"></p>
+        <div class="feel" id="feel"></div>
+        <p class="reply" id="reply" aria-live="polite"></p>
+      </div>
+      <div class="next" id="endNext"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   ROUND ONE / ROUND TWO
+   One engine, two embeds. For the second embed, either add ?round=2
+   or save a copy of this file with "round-two" in its name.
+
+   The sprint cannot be finished. Two locks guarantee it:
+   1. the sums get harder with every answer, and
+   2. each new sum types itself in before it can be answered,
+      and that delay grows. Across all the sums the delays add
+      up to more than the time on the clock.
+   The lesson tells the scholar this on the next slide.
+   ============================================================ */
+
+const CONFIG = {
+  seconds: 45,
+  target: 40,
+  seeds: { 1: 20261030, 2: 8675309 },
+  lateAt: 10,                       // seconds left when the clock turns red
+  delay: i => 250 + 2.2 * i * i,    // ms before sum number i (from 0) can be answered
+  lines: [
+    "I am excited.",
+    "This is my body getting me ready.",
+    "This matters to me.",
+    "This energy is fuel."
+  ],
+  copy: {
+    1: {
+      eyebrow: "Round One",
+      title: "45 seconds. 40 sums.",
+      lead: "Type each answer. It moves on the moment you are right.",
+      endLead: "Before you move on, notice what your body is doing right now. <strong>Heart. Hands. Breathing.</strong>",
+      skipped: "That is fine."
+    },
+    2: {
+      eyebrow: "Round Two",
+      title: "Pick your line.",
+      lead: "Choose what you will say to yourself when your heart speeds up. It stays on screen while the clock runs.",
+      endLead: "A second try is usually faster, so the number proves very little. <strong>The feeling is the result.</strong>",
+      skipped: "That is fine."
+    },
+    next: "Then go to the next slide.",
+    feelQ: "With your line on screen, the pressure felt:",
+    feel: [
+      ["Worse", "That happens. A line is a tool, not magic. Keep the one that felt true and drop the rest."],
+      ["About the same", "That is honest. One sentence does not retrain a body in 45 seconds. This is a skill, and that was your first rep."],
+      ["More useful", "Same clock. Same kind of sums. The label was the only thing that changed."]
+    ]
+  }
+};
+
+const params = new URLSearchParams(location.search);
+const ROUND = (params.get("round") === "2" || /round-two/i.test(location.pathname)) ? 2 : 1;
+const C = CONFIG.copy[ROUND];
+const STORE = "ex08.round1";
+const TIMES = "×", MINUS = "−";
+const $ = id => document.getElementById(id);
+
+/* ---------- seeded sums ---------- */
+function rng(seed){ let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rand = rng(CONFIG.seeds[ROUND]);
+const ri = (a, b) => a + Math.floor(rand() * (b - a + 1));
+
+function makeSum(i){
+  let a, b, c;
+  if (i < 4)  { a = ri(3, 9); b = ri(3, 9); return [a + " + " + b, a + b]; }
+  if (i < 8)  { a = ri(21, 79); b = ri(4, 9); return i % 2 ? [a + " " + MINUS + " " + b, a - b] : [a + " + " + b, a + b]; }
+  if (i < 12) { a = ri(3, 9); b = ri(6, 9); return [a + " " + TIMES + " " + b, a * b]; }
+  if (i < 16) { if (i % 2) { a = ri(52, 96); b = ri(13, 38); return [a + " " + MINUS + " " + b, a - b]; } a = ri(24, 68); b = ri(13, 29); return [a + " + " + b, a + b]; }
+  if (i < 20) { a = ri(13, 49); b = ri(3, 8); return [a + " " + TIMES + " " + b, a * b]; }
+  if (i < 26) { a = ri(34, 88); b = ri(17, 59); c = ri(12, 29); return [a + " + " + b + " " + MINUS + " " + c, a + b - c]; }
+  if (i < 32) { if (i % 2) { a = ri(13, 29); b = ri(12, 19); return [a + " " + TIMES + " " + b, a * b]; } a = ri(213, 689); b = ri(145, 298); return [a + " + " + b, a + b]; }
+  if (i < 36) { a = ri(123, 489); b = ri(23, 78); return [a + " " + TIMES + " " + b, a * b]; }
+  a = ri(1234, 8765); b = ri(234, 876); return [a + " " + TIMES + " " + b, a * b];
+}
+
+/* ---------- state ---------- */
+let state = "intro";
+let chosenLine = "";
+let idx = 0, reached = 0, typed = "", current = null, ready = false;
+let t0 = 0, raf = 0, revealTimer = 0;
+const RING_LEN = 2 * Math.PI * 46;
+
+function show(id){ ["intro", "run", "end"].forEach(s => { $(s).hidden = s !== id; }); state = id; }
+
+/* ---------- intro ---------- */
+$("introEyebrow").innerHTML = "<b>" + C.eyebrow + "</b>";
+$("introTitle").textContent = C.title;
+$("introLead").textContent = C.lead;
+$("runEyebrow").innerHTML = "<b>" + C.eyebrow + "</b>";
+$("reachT").textContent = CONFIG.target;
+
+if (ROUND === 2) {
+  const host = $("lines"); host.hidden = false;
+  $("start").disabled = true;
+  const buttons = [];
+  const own = document.createElement("input");
+  const pick = (text, btn) => {
+    chosenLine = text.trim();
+    buttons.forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+    own.classList.toggle("picked", !btn && !!chosenLine);
+    $("start").disabled = !chosenLine;
+  };
+  CONFIG.lines.forEach(text => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "line"; b.textContent = text; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { own.value = ""; pick(text, b); });
+    buttons.push(b); host.appendChild(b);
+  });
+  own.type = "text"; own.id = "ownLine"; own.className = "own"; own.maxLength = 48;
+  own.placeholder = "Or write your own"; own.setAttribute("aria-label", "Write your own line");
+  own.addEventListener("input", () => pick(own.value, null));
+  host.appendChild(own);
+}
+
+/* ---------- keypad and track ---------- */
+(function buildPad(){
+  const pad = $("pad");
+  ["1","2","3","4","5","6","7","8","9","del","0",""].forEach(k => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "key" + (k === "del" || k === "" ? " fn" : "");
+    if (k === "") { b.disabled = true; b.style.visibility = "hidden"; }
+    else if (k === "del") { b.textContent = "Delete"; b.dataset.k = "del"; }
+    else { b.textContent = k; b.dataset.k = k; }
+    b.addEventListener("pointerdown", e => { e.preventDefault(); press(b.dataset.k); });
+    pad.appendChild(b);
+  });
+  const track = $("track");
+  for (let i = 0; i < CONFIG.target; i++) {
+    const t = document.createElement("div");
+    t.className = "tick" + (i === CONFIG.target - 1 ? " end" : "");
+    track.appendChild(t);
+  }
+})();
+
+/* ---------- run ---------- */
+function start(){
+  idx = 0; reached = 0; typed = "";
+  $("mine").textContent = chosenLine;
+  $("mine").style.display = ROUND === 2 ? "" : "none";
+  $("run").classList.remove("late");
+  [...$("track").children].forEach(t => t.classList.remove("on"));
+  $("reachN").textContent = "0";
+  show("run");
+  t0 = performance.now();
+  nextSum();
+  raf = requestAnimationFrame(tick);
+}
+
+function tick(now){
+  const left = Math.max(0, CONFIG.seconds - (now - t0) / 1000);
+  $("clock").textContent = left.toFixed(1);
+  $("ringFg").style.strokeDasharray = RING_LEN;
+  $("ringFg").style.strokeDashoffset = RING_LEN * (1 - left / CONFIG.seconds);
+  $("run").classList.toggle("late", left <= CONFIG.lateAt);
+  if (left <= 0) { finish("time"); return; }
+  raf = requestAnimationFrame(tick);
+}
+
+function nextSum(){
+  if (idx >= CONFIG.target) { ready = false; return; }   // unreachable by design; guarded anyway
+  current = makeSum(idx);
+  typed = ""; ready = false;
+  const text = current[0];
+  const sumEl = $("sum"), ansEl = $("ans");
+  sumEl.classList.toggle("long", text.length > 11);
+  ansEl.textContent = ""; ansEl.className = "ans wait";
+  const wait = CONFIG.delay(idx);
+  const begun = performance.now();
+  clearInterval(revealTimer);
+  const draw = () => {
+    const p = Math.min(1, (performance.now() - begun) / wait);
+    const n = Math.floor(p * text.length);
+    sumEl.innerHTML = "";
+    sumEl.appendChild(document.createTextNode(text.slice(0, n)));
+    const ghost = document.createElement("span"); ghost.className = "ghost"; ghost.textContent = text.slice(n);
+    sumEl.appendChild(ghost);
+    if (p >= 1) { clearInterval(revealTimer); ready = true; ansEl.className = "ans"; }
+  };
+  draw();
+  revealTimer = setInterval(draw, 30);
+}
+
+function press(k){
+  if (state !== "run" || !ready || !k) return;
+  const ansEl = $("ans");
+  if (k === "del") { typed = typed.slice(0, -1); ansEl.textContent = typed; return; }
+  const want = String(current[1]);
+  if (typed.length >= want.length) return;
+  typed += k; ansEl.textContent = typed;
+  if (typed === want) {
+    $("track").children[idx].classList.add("on");
+    idx++; reached = idx;
+    $("reachN").textContent = reached;
+    nextSum();
+  } else if (typed.length >= want.length) {
+    ready = false; ansEl.classList.add("bad");
+    setTimeout(() => { if (state !== "run") return; typed = ""; ansEl.textContent = ""; ansEl.className = "ans"; ready = true; }, 260);
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (state !== "run") return;
+  if (e.key >= "0" && e.key <= "9") { e.preventDefault(); flash(e.key); press(e.key); }
+  else if (e.key === "Backspace") { e.preventDefault(); flash("del"); press("del"); }
+});
+function flash(k){
+  const b = $("pad").querySelector('[data-k="' + k + '"]');
+  if (!b) return; b.classList.add("hit"); setTimeout(() => b.classList.remove("hit"), 110);
+}
+
+/* ---------- end ---------- */
+function finish(why){
+  cancelAnimationFrame(raf); clearInterval(revealTimer); ready = false;
+  const skipped = why === "skip";
+  $("endEyebrow").innerHTML = "<b>" + C.eyebrow + "</b>";
+  $("endBig").textContent = skipped ? "Round skipped." : (why === "stop" ? "Stopped." : "Time.");
+  let r1 = null;
+  if (ROUND === 1 && !skipped) { try { localStorage.setItem(STORE, String(reached)); } catch (e) {} }
+  if (ROUND === 2) {
+    const fromUrl = parseInt(params.get("r1"), 10);
+    if (!isNaN(fromUrl)) r1 = fromUrl;
+    else { try { const v = localStorage.getItem(STORE); if (v !== null && v !== "") r1 = parseInt(v, 10); } catch (e) {} }
+    if (isNaN(r1)) r1 = null;
+  }
+  const lines = [];
+  if (!skipped) {
+    if (ROUND === 1) lines.push("You reached <b>" + reached + "</b> of " + CONFIG.target + ".");
+    else {
+      if (r1 !== null) lines.push("Round One: <b>" + r1 + "</b> of " + CONFIG.target + ".");
+      lines.push("Round Two: <b>" + reached + "</b> of " + CONFIG.target + ".");
+    }
+  }
+  $("endReadout").innerHTML = lines.join("<br>");
+  $("endReadout").hidden = !lines.length;
+  $("endLead").innerHTML = skipped ? C.skipped : C.endLead;
+  $("endNext").textContent = skipped ? "Go to the next slide." : CONFIG.copy.next;
+
+  const fb = $("feelBlock");
+  if (ROUND === 2 && !skipped) {
+    fb.hidden = false;
+    $("feelQ").textContent = CONFIG.copy.feelQ;
+    const host = $("feel"); host.innerHTML = "";
+    const btns = [];
+    CONFIG.copy.feel.forEach(([label, reply]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "line"; b.textContent = label; b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => {
+        btns.forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+        $("reply").textContent = reply;
+      });
+      btns.push(b); host.appendChild(b);
+    });
+    $("reply").textContent = "";
+  } else fb.hidden = true;
+
+  show("end");
+  try { window.parent.postMessage({ type: "ex08:round", round: ROUND, reached: skipped ? null : reached, skipped: skipped }, "*"); } catch (e) {}
+}
+
+$("start").addEventListener("click", start);
+$("skip").addEventListener("click", () => finish("skip"));
+$("stop").addEventListener("click", () => finish("stop"));
+</script>
+</body>
+</html>
